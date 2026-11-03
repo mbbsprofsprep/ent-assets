@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ENT Assets -> jsDelivr WebP Uploader</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center p-4 font-sans">
+
+  <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-5">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-lg font-bold text-slate-100">ENT Assets Uploader</h1>
+        <p class="text-[11px] font-mono text-slate-400">mbbsprofsprep/ent-assets</p>
+      </div>
+      <button id="tokenBtn" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-xs text-emerald-400 font-medium rounded-lg transition">Set Token</button>
+    </div>
+
+    <!-- Subfolder Input (Optional) -->
+    <div class="flex items-center gap-2">
+      <label class="text-xs text-slate-400 whitespace-nowrap">Folder:</label>
+      <input type="text" id="folderInput" value="" placeholder="root (or e.g. ear, nose, larynx)" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500">
+    </div>
+
+    <!-- Drag & Drop Zone -->
+    <div id="dropZone" class="border-2 border-dashed border-slate-700 hover:border-emerald-500 rounded-xl p-6 text-center cursor-pointer transition-colors bg-slate-950/50">
+      <input type="file" id="fileInput" accept="image/*" class="hidden">
+      <div id="previewContainer" class="hidden mb-3 space-y-2">
+        <img id="imagePreview" class="max-h-40 mx-auto rounded-lg object-contain" />
+        <div id="sizeBadge" class="inline-block px-2.5 py-1 bg-slate-800 text-emerald-400 text-xs font-mono rounded-full"></div>
+      </div>
+      <p class="text-sm text-slate-400">Drag & drop, Paste <kbd class="px-1.5 py-0.5 bg-slate-800 rounded text-xs">Ctrl+V</kbd>, or <span class="text-emerald-400 font-medium">browse</span></p>
+    </div>
+
+    <!-- WebP Compression Controls -->
+    <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 space-y-3">
+      <div class="flex items-center justify-between">
+        <label class="flex items-center gap-2 text-xs font-medium text-slate-300 cursor-pointer">
+          <input type="checkbox" id="webpToggle" checked class="accent-emerald-500 rounded">
+          Auto-convert & compress to WebP
+        </label>
+        <span id="qualityValue" class="text-xs font-mono text-emerald-400">82%</span>
+      </div>
+      <div id="compressionControls" class="grid grid-cols-2 gap-3 pt-1">
+        <div>
+          <label class="block text-[11px] text-slate-400 mb-1">WebP Quality</label>
+          <input type="range" id="qualitySlider" min="0.4" max="1.0" step="0.02" value="0.82" class="w-full accent-emerald-500 cursor-pointer">
+        </div>
+        <div>
+          <label class="block text-[11px] text-slate-400 mb-1">Max Width (px)</label>
+          <select id="maxWidthSelect" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+            <option value="0">Original Size</option>
+            <option value="1920" selected>1920px (FHD)</option>
+            <option value="1280">1280px (HD)</option>
+            <option value="800">800px (Web/Notes)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Custom Filename Input -->
+    <div>
+      <label class="block text-xs font-medium text-slate-400 mb-1">Custom Image Name</label>
+      <div class="flex items-center bg-slate-950 border border-slate-800 rounded-lg overflow-hidden focus-within:border-emerald-500">
+        <input type="text" id="fileNameInput" placeholder="e.g., tympanic-membrane-01" class="w-full bg-transparent px-3 py-2 text-sm text-slate-100 focus:outline-none">
+        <span id="extBadge" class="px-3 py-2 bg-slate-800 text-emerald-400 text-xs font-mono">.webp</span>
+      </div>
+    </div>
+
+    <!-- Duplicate File Warning Banner -->
+    <div id="conflictBox" class="hidden bg-amber-950/50 border border-amber-700/60 rounded-xl p-4 space-y-3">
+      <div class="flex items-start gap-2.5">
+        <span class="text-amber-400 text-sm font-bold">!</span>
+        <p class="text-xs text-amber-200 leading-relaxed">
+          <strong id="conflictFileName" class="font-mono text-amber-300"></strong> already exists in your repository. Rename this upload or overwrite the existing image?
+        </p>
+      </div>
+      <div class="flex gap-2">
+        <button id="renameOptionBtn" class="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg transition">
+          Change Name
+        </button>
+        <button id="overwriteOptionBtn" class="flex-1 py-2 bg-amber-600 hover:bg-amber-500 text-slate-950 text-xs font-bold rounded-lg transition">
+          Replace Existing
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Upload Button -->
+    <button id="uploadBtn" disabled class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-semibold rounded-lg text-sm transition">
+      Check & Upload Image
+    </button>
+
+    <!-- Output Box -->
+    <div id="resultBox" class="hidden space-y-2 pt-2 border-t border-slate-800">
+      <div class="flex items-center justify-between">
+        <label class="block text-xs text-emerald-400 font-medium" id="statusMsg">Copied to clipboard!</label>
+        <button id="purgeBtn" class="text-xs text-amber-400 hover:underline hidden">Purge CDN Cache</button>
+      </div>
+      <div class="flex gap-2">
+        <input type="text" id="cdnUrlOutput" readonly class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-slate-300 focus:outline-none">
+        <button id="copyBtn" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-medium">Copy</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Pre-configured for mbbsprofsprep/ent-assets
+    const GITHUB_CONFIG = {
+      owner: "mbbsprofsprep",
+      repo: "ent-assets",
+      branch: "main"
+    };
+
+    let rawFile = null;
+    let processedBlob = null;
+    let fileExtension = "webp";
+    let pendingOverwriteSha = null;
+    let pendingFilePath = "";
+
+    const dropZone = document.getElementById("dropZone");
+    const fileInput = document.getElementById("fileInput");
+    const folderInput = document.getElementById("folderInput");
+    const fileNameInput = document.getElementById("fileNameInput");
+    const extBadge = document.getElementById("extBadge");
+    const uploadBtn = document.getElementById("uploadBtn");
+    const conflictBox = document.getElementById("conflictBox");
+    const conflictFileName = document.getElementById("conflictFileName");
+    const renameOptionBtn = document.getElementById("renameOptionBtn");
+    const overwriteOptionBtn = document.getElementById("overwriteOptionBtn");
+    const previewContainer = document.getElementById("previewContainer");
+    const imagePreview = document.getElementById("imagePreview");
+    const sizeBadge = document.getElementById("sizeBadge");
+    const webpToggle = document.getElementById("webpToggle");
+    const qualitySlider = document.getElementById("qualitySlider");
+    const qualityValue = document.getElementById("qualityValue");
+    const maxWidthSelect = document.getElementById("maxWidthSelect");
+    const compressionControls = document.getElementById("compressionControls");
+    const resultBox = document.getElementById("resultBox");
+    const cdnUrlOutput = document.getElementById("cdnUrlOutput");
+    const statusMsg = document.getElementById("statusMsg");
+    const purgeBtn = document.getElementById("purgeBtn");
+    const tokenBtn = document.getElementById("tokenBtn");
+
+    const formatBytes = (bytes) => (bytes / 1024).toFixed(1) + " KB";
+
+    // Auto-fix uppercase 'Github_pat_' from mobile keyboard auto-capitalization
+    function sanitizeToken(raw) {
+      let t = raw.trim();
+      if (t.startsWith("Github_pat_")) {
+        t = "g" + t.slice(1);
+      }
+      return t;
+    }
+
+    function updateTokenUI() {
+      const hasToken = !!localStorage.getItem("gh_upload_pat");
+      tokenBtn.textContent = hasToken ? "Token Saved ✓" : "Set Token";
+    }
+    updateTokenUI();
+
+    tokenBtn.addEventListener("click", () => {
+      const current = localStorage.getItem("gh_upload_pat") || "";
+      const token = prompt("Paste your GitHub Fine-Grained PAT:", current);
+      if (token !== null) {
+        localStorage.setItem("gh_upload_pat", sanitizeToken(token));
+        updateTokenUI();
+      }
+    });
+
+    async function processImage() {
+      if (!rawFile) return;
+
+      const isAnimatedOrVector = rawFile.type === "image/gif" || rawFile.type === "image/svg+xml";
+      const shouldConvertWebP = webpToggle.checked && !isAnimatedOrVector;
+
+      if (!shouldConvertWebP) {
+        processedBlob = rawFile;
+        const parts = rawFile.name.split(".");
+        fileExtension = parts.length > 1 ? parts.pop().toLowerCase() : "png";
+        extBadge.textContent = `.${fileExtension}`;
+        imagePreview.src = URL.createObjectURL(rawFile);
+        sizeBadge.textContent = `Original: ${formatBytes(rawFile.size)}`;
+        return;
+      }
+
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(rawFile);
+      img.src = objectUrl;
+      await new Promise((res) => (img.onload = res));
+
+      const maxWidth = parseInt(maxWidthSelect.value, 10);
+      let targetWidth = img.width;
+      let targetHeight = img.height;
+
+      if (maxWidth > 0 && img.width > maxWidth) {
+        targetWidth = maxWidth;
+        targetHeight = Math.round((img.height * maxWidth) / img.width);
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+      const quality = parseFloat(qualitySlider.value);
+      processedBlob = await new Promise((res) => canvas.toBlob(res, "image/webp", quality));
+      URL.revokeObjectURL(objectUrl);
+
+      fileExtension = "webp";
+      extBadge.textContent = ".webp";
+      imagePreview.src = URL.createObjectURL(processedBlob);
+
+      const savedPct = Math.max(0, Math.round((1 - processedBlob.size / rawFile.size) * 100));
+      sizeBadge.textContent = `${formatBytes(rawFile.size)} → ${formatBytes(processedBlob.size)} (-${savedPct}%)`;
+    }
+
+    async function handleFile(file) {
+      if (!file || !file.type.startsWith("image/")) return;
+      rawFile = file;
+      conflictBox.classList.add("hidden");
+      uploadBtn.classList.remove("hidden");
+
+      const parts = file.name.split(".");
+      if (parts.length > 1) parts.pop();
+      const baseName = parts.join(".").toLowerCase().replace(/[^a-z0-9-_]/g, "-");
+
+      fileNameInput.value = baseName || `img-${Date.now()}`;
+      previewContainer.classList.remove("hidden");
+      uploadBtn.disabled = false;
+
+      await processImage();
+      fileNameInput.focus();
+      fileNameInput.select();
+    }
+
+    webpToggle.addEventListener("change", () => {
+      compressionControls.classList.toggle("opacity-40", !webpToggle.checked);
+      compressionControls.classList.toggle("pointer-events-none", !webpToggle.checked);
+      processImage();
+    });
+    qualitySlider.addEventListener("input", () => {
+      qualityValue.textContent = `${Math.round(qualitySlider.value * 100)}%`;
+      processImage();
+    });
+    maxWidthSelect.addEventListener("change", processImage);
+
+    fileNameInput.addEventListener("input", () => {
+      conflictBox.classList.add("hidden");
+      uploadBtn.classList.remove("hidden");
+    });
+
+    dropZone.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", (e) => handleFile(e.target.files[0]));
+    dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("border-emerald-500"); });
+    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("border-emerald-500"));
+    dropZone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropZone.classList.remove("border-emerald-500");
+      handleFile(e.dataTransfer.files[0]);
+    });
+
+    window.addEventListener("paste", (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith("image/")) {
+          handleFile(item.getAsFile());
+          break;
+        }
+      }
+    });
+
+    const blobToBase64 = (blob) => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(blob);
+      reader.onload = () => resolve(reader.result.split(",")[1]);
+      reader.onerror = (err) => reject(err);
+    });
+
+    async function commitFileToGitHub(filePath, shaToOverwrite = null) {
+      const token = sanitizeToken(localStorage.getItem("gh_upload_pat") || "");
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = "Uploading to GitHub...";
+      conflictBox.classList.add("hidden");
+      uploadBtn.classList.remove("hidden");
+
+      try {
+        const base64Content = await blobToBase64(processedBlob);
+        const apiUrl = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${filePath}`;
+
+        const putRes = await fetch(apiUrl, {
+          method: "PUT",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/vnd.github+json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            message: `${shaToOverwrite ? "Replace" : "Upload"} ${filePath} (${formatBytes(processedBlob.size)})`,
+            content: base64Content,
+            branch: GITHUB_CONFIG.branch,
+            ...(shaToOverwrite && { sha: shaToOverwrite })
+          })
+        });
+
+        if (!putRes.ok) {
+          const err = await putRes.json();
+          throw new Error(err.message || "Upload failed");
+        }
+
+        const cdnUrl = `https://cdn.jsdelivr.net/gh/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}@${GITHUB_CONFIG.branch}/${filePath}`;
+        cdnUrlOutput.value = cdnUrl;
+        resultBox.classList.remove("hidden");
+
+        if (shaToOverwrite) {
+          purgeBtn.classList.remove("hidden");
+          fetch(`https://purge.jsdelivr.net/gh/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}@${GITHUB_CONFIG.branch}/${filePath}`).catch(() => {});
+          statusMsg.textContent = "Replaced & requested CDN cache purge!";
+        } else {
+          purgeBtn.classList.add("hidden");
+          statusMsg.textContent = "Uploaded & copied to clipboard!";
+        }
+
+        await navigator.clipboard.writeText(cdnUrl);
+      } catch (error) {
+        alert(`Error: ${error.message}`);
+      } finally {
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = "Check & Upload Image";
+      }
+    }
+
+    uploadBtn.addEventListener("click", async () => {
+      const token = sanitizeToken(localStorage.getItem("gh_upload_pat") || "");
+      if (!token) {
+        alert("Tap 'Set Token' at the top-right first and paste your GitHub Personal Access Token.");
+        return;
+      }
+
+      const cleanFolder = folderInput.value.trim().replace(/^\/+|\/+$/g, "");
+      const cleanName = fileNameInput.value.trim().replace(/[^a-zA-Z0-9-_]/g, "-") || `img-${Date.now()}`;
+      const finalFileName = `${cleanName}.${fileExtension}`;
+      pendingFilePath = cleanFolder ? `${cleanFolder}/${finalFileName}` : finalFileName;
+
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = "Checking repository...";
+
+      try {
+        const apiUrl = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${pendingFilePath}?ref=${GITHUB_CONFIG.branch}`;
+        const checkRes = await fetch(apiUrl, {
+          headers: { "Authorization": `Bearer ${token}`, "Accept": "application/vnd.github+json" }
+        });
+
+        if (checkRes.ok) {
+          const existingData = await checkRes.json();
+          pendingOverwriteSha = existingData.sha;
+          conflictFileName.textContent = pendingFilePath;
+          conflictBox.classList.remove("hidden");
+          uploadBtn.classList.add("hidden");
+          uploadBtn.disabled = false;
+          uploadBtn.textContent = "Check & Upload Image";
+          return;
+        }
+
+        await commitFileToGitHub(pendingFilePath, null);
+      } catch (error) {
+        alert(`Error checking file: ${error.message}`);
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = "Check & Upload Image";
+      }
+    });
+
+    renameOptionBtn.addEventListener("click", () => {
+      conflictBox.classList.add("hidden");
+      uploadBtn.classList.remove("hidden");
+      fileNameInput.focus();
+      fileNameInput.select();
+    });
+
+    overwriteOptionBtn.addEventListener("click", () => {
+      commitFileToGitHub(pendingFilePath, pendingOverwriteSha);
+    });
+
+    purgeBtn.addEventListener("click", () => {
+      const purgeUrl = cdnUrlOutput.value.replace("https://cdn.jsdelivr.net/", "https://purge.jsdelivr.net/");
+      window.open(purgeUrl, "_blank");
+    });
+
+    document.getElementById("copyBtn").addEventListener("click", () => {
+      navigator.clipboard.writeText(cdnUrlOutput.value);
+      statusMsg.textContent = "Copied again!";
+    });
+  </script>
+</body>
+</html>
